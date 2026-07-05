@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#071f2c">
+  <title>BLUE ATLAS · 世界潜水地图</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <style>
+    :root {
+      --ink: #f4fbff; --muted: #91b8c7; --line: rgba(137,211,232,.17);
+      --sea: #031a2d; --sea-2: #062b44; --land: #14516a; --lime: #d9f77f;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body { color:var(--ink); background:linear-gradient(145deg,#021522 0%,#052b43 52%,#031c31 100%); font-family:Inter,"Noto Sans SC","Microsoft YaHei",system-ui,sans-serif; overflow-x:hidden; }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    .shell { min-height: 100vh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+    .shell::before { content:""; position:absolute; inset:0; opacity:.28; pointer-events:none; background:radial-gradient(circle at 78% 12%,rgba(38,174,211,.16),transparent 30%),linear-gradient(rgba(139,218,237,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(139,218,237,.025) 1px,transparent 1px); background-size:auto,48px 48px,48px 48px; }
+    header { height:76px; padding:0 4.5vw; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:1000; background:rgba(3,25,43,.82); backdrop-filter:blur(20px); }
+    .brand { display:flex; align-items:center; gap:12px; font-weight:600; letter-spacing:.18em; font-size:14px; white-space:nowrap; }
+    .brand-mark { width:32px; height:32px; border:1px solid rgba(215,239,120,.55); border-radius:50%; display:grid; place-items:center; color:var(--lime); font-size:17px; transform:rotate(-12deg); }
+    .search-wrap { width:min(600px,52vw); position:relative; }
+    .search { height:48px; width:100%; border:1px solid rgba(255,255,255,.18); border-radius:99px; padding:0 54px 0 48px; color:var(--ink); outline:none; background:rgba(255,255,255,.075); transition:.25s; }
+    .search::placeholder { color:#88a5ac; }
+    .search:focus { border-color:rgba(215,239,120,.65); background:rgba(255,255,255,.1); box-shadow:0 0 0 4px rgba(215,239,120,.07); }
+    .search-icon { position:absolute; left:19px; top:14px; color:var(--muted); }
+    .shortcut { position:absolute; right:10px; top:10px; height:28px; min-width:30px; border:1px solid rgba(255,255,255,.16); border-radius:99px; display:grid; place-items:center; color:#86a4ac; font-size:11px; }
+    .results { display:none; position:absolute; top:58px; left:0; right:0; padding:8px; background:#0d303c; border:1px solid rgba(255,255,255,.15); border-radius:18px; box-shadow:0 20px 70px rgba(0,0,0,.38); }
+    .results.show { display:block; animation:fade .18s ease-out; }
+    .result { width:100%; border:0; border-radius:12px; padding:11px 13px; display:flex; justify-content:space-between; align-items:center; text-align:left; background:transparent; cursor:pointer; }
+    .result:hover,.result.active { background:rgba(255,255,255,.08); }
+    .result strong { display:block; font-size:14px; }
+    .result small { color:var(--muted); }
+    .result span:last-child { color:var(--lime); font-size:13px; }
+    .hero { padding:28px 4.5vw 8px; display:flex; align-items:end; justify-content:space-between; gap:30px; position:relative; z-index:2; }
+    .eyebrow { color:var(--lime); letter-spacing:.2em; font-size:11px; font-weight:600; text-transform:uppercase; margin-bottom:12px; }
+    h1 { margin:0; font-weight:500; font-size:clamp(34px,4.2vw,60px); line-height:.98; letter-spacing:-.055em; }
+    h1 em { color:#72bed4; font-style:normal; }
+    .intro { max-width:330px; color:var(--muted); line-height:1.7; font-size:14px; margin:0 0 5px; }
+    .map-wrap { margin:18px 4.5vw 34px; position:relative; flex:1; min-height:540px; z-index:1; border:1px solid rgba(100,201,230,.25); border-radius:28px; overflow:hidden; background:#032b45; box-shadow:0 32px 90px rgba(0,10,24,.4),inset 0 1px 0 rgba(255,255,255,.05); }
+    .map { display:block; width:100%; height:min(70vh,760px); min-height:560px; background:#063450; }
+    .leaflet-container { font-family:inherit; }
+    .leaflet-tile-pane { background:#063450; filter:grayscale(.55) brightness(.78) contrast(1.08); opacity:1; }
+    .leaflet-map-pane::after { content:""; position:absolute; inset:0; z-index:350; pointer-events:none; background:linear-gradient(155deg,rgba(20,113,153,.11),rgba(3,50,79,.16)); }
+    .leaflet-control-zoom { border:1px solid rgba(255,255,255,.16)!important; box-shadow:none!important; }
+    .leaflet-control-zoom a { color:var(--ink)!important; background:rgba(7,31,44,.88)!important; border-color:rgba(255,255,255,.12)!important; }
+    .leaflet-control-attribution { color:#8ea9ae!important; background:rgba(7,31,44,.78)!important; }
+    .leaflet-control-attribution a { color:#d7ef78!important; }
+    .dive-marker { background:transparent; border:0; }
+    .dive-star { width:30px; height:30px; display:grid; place-items:center; color:var(--lime); font-size:23px; line-height:1; text-shadow:0 2px 8px #00151d,0 0 12px rgba(215,239,120,.45); transition:.2s; }
+    .dive-star::before { content:""; position:absolute; inset:4px; border-radius:50%; background:rgba(215,239,120,.12); animation:mapPulse 2.4s infinite; }
+    .dive-marker:hover .dive-star,.dive-marker.is-active .dive-star { transform:scale(1.35) rotate(12deg); }
+    .dive-tooltip { width:280px; padding:18px!important; color:#092631!important; background:#f3f2e9!important; border:0!important; border-radius:16px!important; box-shadow:0 22px 60px rgba(0,0,0,.35)!important; white-space:normal!important; }
+    .leaflet-tooltip-top.dive-tooltip::before { border-top-color:#f3f2e9!important; }
+    .graticule { fill:none; stroke:rgba(174,213,215,.085); stroke-width:.7; }
+    .continent { fill:var(--land); stroke:#2a5a67; stroke-width:1.2; transition:.3s; }
+    .coast { fill:none; stroke:rgba(186,225,220,.23); stroke-width:.7; }
+    .marker { cursor:pointer; outline:none; }
+    .marker .pulse { fill:rgba(215,239,120,.12); transform-box:fill-box; transform-origin:center; }
+    .marker:hover .pulse,.marker:focus .pulse,.marker.selected .pulse { animation:pulse 1.6s infinite; }
+    .marker .star { fill:var(--lime); stroke:#071f2c; stroke-width:2; transition:.2s; }
+    .marker:hover .star,.marker:focus .star,.marker.selected .star { transform-box:fill-box; transform-origin:center; transform:scale(1.32); }
+    .marker-label { fill:#d9e9e7; font-size:10px; letter-spacing:.08em; opacity:.62; pointer-events:none; }
+    .tooltip { position:fixed; width:280px; z-index:30; pointer-events:none; opacity:0; transform:translateY(8px); transition:opacity .18s,transform .18s; padding:18px; color:#092631; background:#f3f2e9; border-radius:16px; box-shadow:0 22px 60px rgba(0,0,0,.35); }
+    .tooltip.show { opacity:1; transform:none; pointer-events:auto; }
+    .tip-top { display:flex; justify-content:space-between; gap:15px; align-items:start; margin-bottom:15px; }
+    .tip-kicker { font-size:10px; color:#6d888b; letter-spacing:.16em; text-transform:uppercase; margin-bottom:4px; }
+    .tip-title { border:0; border-bottom:1px solid #a5b4ad; padding:0 0 2px; cursor:pointer; color:#092631; background:none; font-size:20px; font-weight:600; text-align:left; }
+    .tip-title:hover { color:#53720d; }
+    .depth { font-size:11px; color:#657e80; white-space:nowrap; }
+    .tip-grid { display:grid; grid-template-columns:1fr 1fr; gap:11px; }
+    .tip-item label { display:block; font-size:9px; color:#789092; letter-spacing:.13em; margin-bottom:3px; }
+    .tip-item span { font-size:12px; font-weight:600; }
+    .rating { color:#718c17; letter-spacing:2px; }
+    .map-meta { position:absolute; left:18px; bottom:16px; z-index:500; display:flex; gap:8px; align-items:center; padding:8px 12px; color:#a5cbd5; background:rgba(2,25,43,.76); border:1px solid rgba(255,255,255,.1); border-radius:99px; backdrop-filter:blur(10px); font-size:9px; letter-spacing:.12em; }
+    .map-meta i { display:block; width:26px; height:1px; background:var(--lime); }
+    .count { position:absolute; right:18px; bottom:16px; z-index:500; min-width:88px; padding:8px 12px; text-align:right; background:rgba(2,25,43,.76); border:1px solid rgba(255,255,255,.1); border-radius:14px; backdrop-filter:blur(10px); }
+    .count strong { font-size:30px; font-weight:500; display:block; letter-spacing:-.04em; }
+    .count span { color:var(--muted); font-size:10px; letter-spacing:.15em; }
+    .drawer { position:fixed; inset:0 0 0 auto; width:min(480px,100%); z-index:50; background:#f1f0e8; color:#0b2a34; transform:translateX(105%); transition:transform .45s cubic-bezier(.2,.9,.2,1); box-shadow:-30px 0 80px rgba(0,0,0,.35); overflow:auto; }
+    .drawer.open { transform:none; }
+    .drawer-cover { height:220px; position:relative; background:linear-gradient(140deg,#377c86,#0b3745 55%,#09242d); overflow:hidden; }
+    .drawer-cover::before,.drawer-cover::after { content:""; position:absolute; border:1px solid rgba(215,239,120,.35); border-radius:50%; width:310px; height:310px; left:-70px; top:65px; }
+    .drawer-cover::after { width:200px;height:200px;left:270px;top:-100px; }
+    .cover-word { position:absolute; left:26px; bottom:18px; font-size:54px; color:rgba(255,255,255,.1); letter-spacing:-.05em; font-weight:600; }
+    .close { position:absolute; right:18px; top:18px; width:38px; height:38px; border:1px solid rgba(255,255,255,.25); border-radius:50%; background:rgba(3,25,33,.28); cursor:pointer; font-size:19px; z-index:2; }
+    .drawer-body { padding:28px 30px 40px; }
+    .detail-kicker { color:#6c8584; font-size:10px; letter-spacing:.18em; text-transform:uppercase; }
+    .drawer h2 { margin:8px 0 12px; font-size:38px; line-height:1.08; letter-spacing:-.04em; }
+    .detail-lead { color:#4e696b; font-size:14px; line-height:1.8; }
+    .stats { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid #cbd3cb; border-bottom:1px solid #cbd3cb; margin:24px 0; }
+    .stat { padding:16px 5px; }
+    .stat+ .stat { border-left:1px solid #cbd3cb; padding-left:16px; }
+    .stat label { display:block; color:#728687; font-size:9px; letter-spacing:.12em; margin-bottom:5px; }
+    .stat strong { font-size:13px; }
+    .feature-list { list-style:none; padding:0; margin:22px 0; }
+    .feature-list li { display:flex; gap:14px; padding:13px 0; border-bottom:1px solid #d2d9d2; font-size:13px; line-height:1.5; }
+    .feature-list b { color:#728d18; min-width:18px; }
+    .season { padding:16px 18px; background:#dfe7cd; border-radius:14px; font-size:12px; line-height:1.65; }
+    .backdrop { position:fixed; inset:0; z-index:40; background:rgba(1,16,23,.56); opacity:0; pointer-events:none; transition:.3s; backdrop-filter:blur(3px); }
+    .backdrop.show { opacity:1; pointer-events:auto; }
+    .no-result { padding:16px; color:var(--muted); text-align:center; font-size:13px; }
+    @keyframes pulse { 50% { transform:scale(1.8); opacity:0; } }
+    @keyframes mapPulse { 70% { transform:scale(2.1); opacity:0; } 100% { opacity:0; } }
+    @keyframes fade { from { opacity:0; transform:translateY(-6px); } }
+    @media(max-width:760px) {
+      header { height:auto; min-height:116px; padding:15px 20px; align-items:flex-start; }
+      .brand { margin-top:9px; }.search-wrap{ width:62vw; }.hero{padding:24px 20px 2px;display:block}.intro{margin-top:14px}.map-wrap{margin:16px 20px 24px;min-height:520px;border-radius:20px}.map{height:60vh;min-height:520px}.count{right:12px;bottom:12px}.map-meta{left:12px;bottom:12px}.tooltip{width:250px}.drawer h2{font-size:32px}
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="brand"><span class="brand-mark">✦</span><span>BLUE ATLAS</span></div>
+      <div class="search-wrap">
+        <span class="search-icon">⌕</span>
+        <input class="search" id="search" type="search" autocomplete="off" placeholder="搜索物种、地貌或难度…" aria-label="搜索潜点">
+        <span class="shortcut">/</span>
+        <div class="results" id="results" role="listbox"></div>
+      </div>
+    </header>
+    <section class="hero">
+      <div><div class="eyebrow">Explore beneath the surface</div><h1>向蓝色深处<br><em>出发。</em></h1></div>
+      <p class="intro">发现散落在世界海洋里的非凡潜点。从珊瑚花园到远洋峭壁，找到你的下一次下潜。</p>
+    </section>
+    <main class="map-wrap" aria-label="世界潜水地图">
+      <div class="map" id="map" role="application" aria-label="可缩放的真实世界潜水地图"></div>
+      <div class="map-meta"><i></i><span>拖动探索 · 滚轮缩放 · 点击星标查看详情</span></div>
+      <div class="count"><strong id="count">100</strong><span>精选潜点</span></div>
+    </main>
+  </div>
+  <div class="tooltip" id="tooltip"></div>
+  <div class="backdrop" id="backdrop"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer-cover"><button class="close" id="close" aria-label="关闭详情">×</button><div class="cover-word">DIVE</div></div>
+    <div class="drawer-body" id="detail"></div>
+  </aside>
+  <script type="text/plain" id="legacy-script">
+    const sites = [
+      {id:'great-blue-hole',name:'大蓝洞',en:'Great Blue Hole · Belize',x:260,y:247,depth:'5–40 m',species:'加勒比礁鲨',terrain:'海洋天坑、钟乳石',level:'进阶',rating:3,season:'4月至6月',desc:'伯利兹灯塔礁中央的深蓝色圆形天坑，水下峭壁与巨型钟乳石构成近乎超现实的空间。',facts:['下潜至约30米可见巨型钟乳石群','洞壁垂直落入超过百米的深蓝','常见礁鲨、护士鲨与巨型石斑鱼']},
+      {id:'galapagos',name:'加拉帕戈斯',en:'Galápagos · Ecuador',x:238,y:345,depth:'8–35 m',species:'锤头鲨、海鬣蜥',terrain:'火山岩壁、强流',level:'专家',rating:2,season:'6月至11月',desc:'洋流交汇处的野性潜水目的地。成群锤头鲨从蓝水中掠过，海狮与海鬣蜥则在浅水区穿梭。',facts:['达尔文拱门附近常见锤头鲨风暴','冷暖洋流交汇，生物密度极高','强流与浪涌要求良好的中性浮力']},
+      {id:'red-sea',name:'红海北部',en:'Northern Red Sea · Egypt',x:638,y:254,depth:'5–30 m',species:'海豚、苏眉鱼',terrain:'珊瑚峭壁、沉船',level:'新手友好',rating:5,season:'3月至5月 / 9月至11月',desc:'清澈温暖的海水、色彩饱和的珊瑚花园与传奇沉船，让这里成为初次船宿与进阶探险的共同答案。',facts:['能见度经常达到30米以上','可探索二战时期沉船 SS Thistlegorm','岸潜、船潜与沉船路线选择丰富']},
+      {id:'maldives',name:'马尔代夫',en:'Maldives · Indian Ocean',x:748,y:330,depth:'5–30 m',species:'蝠鲼、鲸鲨',terrain:'环礁水道、礁坡',level:'中级',rating:4,season:'1月至4月',desc:'在环礁水道的潮汐中等待巨物：蝠鲼清洁站、鲸鲨和密集鱼群，共同组成印度洋的蓝色剧场。',facts:['Hanifaru 湾以蝠鲼聚集闻名','水道潜水可遇见鲨鱼与鹰鳐','度假村外礁适合新手平静探索']},
+      {id:'sipadan',name:'诗巴丹',en:'Sipadan · Malaysia',x:914,y:339,depth:'5–40 m',species:'海龟、杰克鱼群',terrain:'海岛峭壁',level:'中级',rating:4,season:'4月至12月',desc:'从六百米深海拔起的火山岛，入水即是珊瑚峭壁。海龟、梭鱼风暴和杰克鱼群几乎每天登场。',facts:['著名的梭鱼风暴形成银色旋涡','峭壁距离海岸仅数米','实行每日限额，需提前申请名额']},
+      {id:'raja-ampat',name:'四王群岛',en:'Raja Ampat · Indonesia',x:1006,y:330,depth:'3–30 m',species:'侏儒海马、蝠鲼',terrain:'珊瑚花园、海山',level:'全级别',rating:5,season:'10月至4月',desc:'地球海洋生物多样性的中心。软珊瑚覆盖礁石，微距生物藏在每一处缝隙，鱼群像云一样移动。',facts:['记录到超过1500种珊瑚礁鱼类','既有平静浅礁也有高速水道','软珊瑚、海扇与微距生态极丰富']},
+      {id:'great-barrier-reef',name:'大堡礁',en:'Great Barrier Reef · Australia',x:1045,y:394,depth:'5–30 m',species:'海龟、小丑鱼',terrain:'堡礁、珊瑚花园',level:'新手友好',rating:5,season:'6月至10月',desc:'绵延两千多公里的珊瑚生态系统，从平静外礁到远海海山，为第一次呼吸水下空气的人保留了足够的惊喜。',facts:['大量浅水潜点适合体验潜水','珊瑚花园中常见海龟与小丑鱼','外堡礁能见度与生物密度更佳']},
+      {id:'palau',name:'帕劳蓝角',en:'Blue Corner · Palau',x:1051,y:291,depth:'8–30 m',species:'灰礁鲨、拿破仑鱼',terrain:'垂直峭壁、强流',level:'进阶',rating:3,season:'11月至5月',desc:'把流钩挂在礁盘边缘，观看灰礁鲨与鱼群逆流巡游。蓝角是大场面、强水流与地形戏剧性的集合。',facts:['流钩潜水是这里的标志体验','礁盘边缘聚集大量远洋生物','附近还有水母湖与德国水道']}
+    ];
+    const markers=document.querySelector('#markers'), tip=document.querySelector('#tooltip'), search=document.querySelector('#search'), results=document.querySelector('#results');
+    const star='M0-9 2.3-2.8 8.6-2.8 3.6 1.1 5.3 7-5.3-4.3-5.3 4.3-3.6-1.1-8.6 2.8-2.3-2.8-2.3z';
+    sites.forEach((s,i)=>{ const g=document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','marker');g.setAttribute('transform',`translate(${s.x} ${s.y})`);g.setAttribute('tabindex','0');g.dataset.id=s.id;g.innerHTML=`<circle class="pulse" r="14"/><path class="star" d="${star}"/><text class="marker-label" x="15" y="4">${s.name}</text>`;markers.appendChild(g);g.addEventListener('mouseenter',e=>showTip(s,e));g.addEventListener('mousemove',moveTip);g.addEventListener('mouseleave',hideTip);g.addEventListener('focus',e=>showTip(s,e));g.addEventListener('click',()=>openDetail(s)); });
+    function stars(n){return '★'.repeat(n)+'☆'.repeat(5-n)}
+    function showTip(s,e){tip.innerHTML=`<div class="tip-top"><div><div class="tip-kicker">${s.en}</div><button class="tip-title" data-open="${s.id}">${s.name} ↗</button></div><span class="depth">${s.depth}</span></div><div class="tip-grid"><div class="tip-item"><label>特色物种</label><span>${s.species}</span></div><div class="tip-item"><label>地貌特点</label><span>${s.terrain}</span></div><div class="tip-item"><label>难度</label><span>${s.level}</span></div><div class="tip-item"><label>新手推荐</label><span class="rating">${stars(s.rating)}</span></div></div>`;tip.classList.add('show');moveTip(e);tip.querySelector('[data-open]').onclick=()=>openDetail(s)}
+    function moveTip(e){if(!e.clientX)return;let x=e.clientX+18,y=e.clientY+18;if(x+290>innerWidth)x=e.clientX-298;if(y+210>innerHeight)y=e.clientY-215;tip.style.left=x+'px';tip.style.top=y+'px'}
+    function hideTip(){setTimeout(()=>{if(!tip.matches(':hover'))tip.classList.remove('show')},80)}
+    tip.addEventListener('mouseleave',hideTip);
+    function openDetail(s){tip.classList.remove('show');document.querySelectorAll('.marker').forEach(m=>m.classList.toggle('selected',m.dataset.id===s.id));document.querySelector('#detail').innerHTML=`<div class="detail-kicker">${s.en}</div><h2>${s.name}</h2><p class="detail-lead">${s.desc}</p><div class="stats"><div class="stat"><label>推荐深度</label><strong>${s.depth}</strong></div><div class="stat"><label>难度</label><strong>${s.level}</strong></div><div class="stat"><label>新手指数</label><strong>${s.rating} / 5</strong></div></div><div class="detail-kicker">潜点亮点</div><ul class="feature-list">${s.facts.map((x,i)=>`<li><b>0${i+1}</b><span>${x}</span></li>`).join('')}</ul><div class="season"><b>最佳季节 · </b>${s.season}<br>出发前请根据季节与个人经验，向当地持证潜店确认水流和天气情况。</div>`;document.querySelector('#drawer').classList.add('open');document.querySelector('#drawer').setAttribute('aria-hidden','false');document.querySelector('#backdrop').classList.add('show')}
+    function closeDetail(){document.querySelector('#drawer').classList.remove('open');document.querySelector('#drawer').setAttribute('aria-hidden','true');document.querySelector('#backdrop').classList.remove('show');document.querySelectorAll('.marker').forEach(m=>m.classList.remove('selected'))}
+    document.querySelector('#close').onclick=closeDetail;document.querySelector('#backdrop').onclick=closeDetail;document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDetail();results.classList.remove('show')}if(e.key==='/'&&document.activeElement!==search){e.preventDefault();search.focus()}});
+    function doSearch(){const q=search.value.trim().toLowerCase();if(!q){results.classList.remove('show');document.querySelector('#count').textContent=String(sites.length).padStart(2,'0');document.querySelectorAll('.marker').forEach(m=>m.style.opacity='1');return}const found=sites.filter(s=>Object.values(s).join(' ').toLowerCase().includes(q));results.innerHTML=found.length?found.map(s=>`<button class="result" data-id="${s.id}"><span><strong>${s.name}</strong><small>${s.species} · ${s.terrain}</small></span><span>${s.level} ↗</span></button>`).join(''):`<div class="no-result">没有找到完全匹配的潜点，试试“海龟”或“新手”</div>`;results.classList.add('show');document.querySelector('#count').textContent=String(found.length).padStart(2,'0');document.querySelectorAll('.marker').forEach(m=>m.style.opacity=found.some(s=>s.id===m.dataset.id)?'1':'.18');results.querySelectorAll('.result').forEach(b=>b.onclick=()=>{const s=sites.find(x=>x.id===b.dataset.id);openDetail(s);results.classList.remove('show');document.querySelector(`.marker[data-id="${s.id}"]`).style.opacity='1'})}
+    search.addEventListener('input',doSearch);search.addEventListener('focus',()=>{if(search.value)doSearch()});document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))results.classList.remove('show')});
+  </script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
